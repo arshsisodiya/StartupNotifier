@@ -5,6 +5,8 @@ import time
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, REQUEST_TIMEOUT
 from logger import setup_logger
 from system_status import get_status_text
+from screenshot import capture_screenshot
+import os
 
 logger = setup_logger()
 
@@ -71,9 +73,51 @@ class TelegramClient:
                         logger.info("/ping command received")
                         self.send_message(get_status_text())
 
+                    elif text.strip() == "/screenshot":
+                        logger.info("/screenshot command received")
+
+                        path = capture_screenshot()
+                        if path:
+                            self.send_photo(
+                                path,
+                                caption="🖥 Current Screen"
+                            )
+                            try:
+                                os.remove(path)
+                            except Exception:
+                                pass
+                        else:
+                            self.send_message("❌ Failed to capture screenshot")
+
             except requests.RequestException as e:
                 logger.warning(f"Polling error: {e}")
 
             time.sleep(2)
 
         logger.info("Command polling finished")
+    def send_photo(self, photo_path: str, caption: str = "") -> bool:
+        url = f"{self.base_url}/sendPhoto"
+
+        try:
+            with open(photo_path, "rb") as photo:
+                files = {"photo": photo}
+                data = {
+                    "chat_id": TELEGRAM_CHAT_ID,
+                    "caption": caption
+                }
+
+                response = requests.post(
+                    url,
+                    files=files,
+                    data=data,
+                    timeout=REQUEST_TIMEOUT
+                )
+                response.raise_for_status()
+
+            logger.info("Screenshot sent successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send screenshot: {e}")
+            return False
+
