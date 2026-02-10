@@ -61,7 +61,7 @@ def main():
     time.sleep(20)
 
     # optional /ping listener
-    client.poll_commands(duration=30)
+    client.listen_forever()
 
     if not client.send_message(get_system_info(), retries=5, delay=6):
         logger.error("Startup notification ultimately failed")

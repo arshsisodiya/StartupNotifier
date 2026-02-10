@@ -1,7 +1,0 @@
-# config.py
-
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
-
-APP_NAME = "Windows Startup Notifier"
-REQUEST_TIMEOUT = 10
