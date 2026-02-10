@@ -1,0 +1,75 @@
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+develop-eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+venv/
+.env/
+.env.*
+ENV/
+.venv/
+
+# =========================
+# PyInstaller / Executables
+# =========================
+*.spec
+*.exe
+*.dll
+*.log
+
+# =========================
+# Config & Secrets
+# =========================
+config.json
+config.yaml
+config.yml
+secrets.json
+.env.local
+config.py
+# =========================
+# Logs & Runtime files
+# =========================
+logs/
+*.log
+*.pid
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# OS specific
+# =========================
+# Windows
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+
+# =========================
+# Test / Coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================
+# Misc
+# =========================
+*.tmp
+*.bak
