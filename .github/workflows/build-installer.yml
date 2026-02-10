@@ -1,0 +1,49 @@
+name: Build & Release Installer
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  APP_VERSION: 2.1.${{ github.run_number }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build app EXE
+        run: |
+          pyinstaller --onefile --name StartupNotifier main.py
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --yes
+
+      - name: Build installer
+        run: |
+          iscc installer\installer.iss
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: Startup Notifier v${{ env.APP_VERSION }}
+          files: installer/output/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
