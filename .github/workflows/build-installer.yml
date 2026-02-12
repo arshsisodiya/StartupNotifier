@@ -29,7 +29,7 @@ jobs:
 
       - name: Build app EXE
         run: |
-          pyinstaller --onefile --name StartupNotifier main.py
+          pyinstaller --onefile --noconsole --name StartupNotifier main.py
 
       - name: Install Inno Setup
         run: |
