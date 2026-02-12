@@ -5,14 +5,16 @@ import time
 from logger import setup_logger
 from system_status import get_status_text
 from screenshot import capture_screenshot
+from system_actions import shutdown_system, restart_system, lock_system
 import os
 from config_loader import load_config
 
 CONFIG = load_config()
 
 TELEGRAM_BOT_TOKEN = CONFIG["telegram"]["bot_token"]
-TELEGRAM_CHAT_ID = CONFIG["telegram"]["chat_id"]
+TELEGRAM_CHAT_ID = str(CONFIG["telegram"]["chat_id"])  # ensure string
 REQUEST_TIMEOUT = 10
+
 logger = setup_logger()
 
 
@@ -56,54 +58,6 @@ class TelegramClient:
         logger.error("All Telegram send attempts failed")
         return False
 
-    def listen_forever(self):
-        """
-        Persistent Telegram command listener.
-        Safe for Windows startup & Defender.
-        """
-        logger.info("Entering persistent Telegram listener")
-
-        while True:
-            try:
-                response = requests.get(
-                    f"{self.base_url}/getUpdates",
-                    params={"timeout": 30, "offset": self.offset},
-                    timeout=REQUEST_TIMEOUT + 20
-                )
-                response.raise_for_status()
-                updates = response.json().get("result", [])
-
-                for update in updates:
-                    self.offset = update["update_id"] + 1
-                    text = update.get("message", {}).get("text", "").strip()
-
-                    if text == "/ping":
-                        logger.info("/ping command received")
-                        self.send_message(get_status_text())
-
-                    elif text == "/screenshot":
-                        logger.info("/screenshot command received")
-                        from screenshot import capture_screenshot
-                        import os
-
-                        path = capture_screenshot()
-                        if path:
-                            self.send_photo(path, caption="🖥 Current Screen")
-                            try:
-                                os.remove(path)
-                            except Exception:
-                                pass
-                        else:
-                            self.send_message("❌ Screenshot failed")
-
-            except requests.exceptions.ReadTimeout:
-                logger.warning("Telegram long-poll timeout (expected)")
-            except Exception as e:
-                logger.error(f"Listener error: {e}")
-
-            # Small sleep to avoid tight loop
-            time.sleep(2)
-
     def send_photo(self, photo_path: str, caption: str = "") -> bool:
         url = f"{self.base_url}/sendPhoto"
 
@@ -130,3 +84,99 @@ class TelegramClient:
             logger.error(f"Failed to send screenshot: {e}")
             return False
 
+    def listen_forever(self):
+        """
+        Persistent Telegram command listener.
+        """
+        logger.info("Entering persistent Telegram listener")
+
+        while True:
+            try:
+                response = requests.get(
+                    f"{self.base_url}/getUpdates",
+                    params={"timeout": 30, "offset": self.offset},
+                    timeout=REQUEST_TIMEOUT + 20
+                )
+                response.raise_for_status()
+                updates = response.json().get("result", [])
+
+                for update in updates:
+                    self.offset = update["update_id"] + 1
+                    message = update.get("message", {})
+
+                    text = message.get("text", "").strip()
+                    chat_id = str(message.get("chat", {}).get("id", ""))
+
+                    # 🔒 Security: Ignore messages from unknown chats
+                    if chat_id != TELEGRAM_CHAT_ID:
+                        logger.warning("Unauthorized chat attempted command")
+                        continue
+
+                    command = text.lower()
+
+                    # -------------------
+                    # STATUS
+                    # -------------------
+                    if command == "/ping":
+                        logger.info("/ping command received")
+                        self.send_message(get_status_text())
+
+                    # -------------------
+                    # SCREENSHOT
+                    # -------------------
+                    elif command == "/screenshot":
+                        logger.info("/screenshot command received")
+                        path = capture_screenshot()
+
+                        if path:
+                            self.send_photo(path, caption="🖥 Current Screen")
+                            try:
+                                os.remove(path)
+                            except Exception:
+                                pass
+                        else:
+                            self.send_message("❌ Screenshot failed")
+
+                    # -------------------
+                    # LOCK
+                    # -------------------
+                    elif command == "/lock":
+                        logger.info("/lock command received")
+                        self.send_message("🔒 Locking system...")
+                        lock_system()
+
+                    # -------------------
+                    # SHUTDOWN
+                    # -------------------
+                    elif command == "/shutdown":
+                        self.send_message(
+                            "⚠️ Shutdown requested.\n"
+                            "Send `/shutdown confirm` to proceed."
+                        )
+
+                    elif command == "/shutdown confirm":
+                        logger.info("/shutdown confirmed")
+                        self.send_message("⏻ Shutting down now...")
+                        shutdown_system()
+
+                    # -------------------
+                    # RESTART
+                    # -------------------
+                    elif command == "/restart":
+                        self.send_message(
+                            "⚠️ Restart requested.\n"
+                            "Send `/restart confirm` to proceed."
+                        )
+
+                    elif command == "/restart confirm":
+                        logger.info("/restart confirmed")
+                        self.send_message("🔄 Restarting now...")
+                        restart_system()
+
+            except requests.exceptions.ReadTimeout:
+                logger.warning("Telegram long-poll timeout (expected)")
+
+            except Exception as e:
+                logger.error(f"Listener error: {e}")
+
+            time.sleep(2)
