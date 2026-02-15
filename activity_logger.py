@@ -5,10 +5,9 @@ import datetime
 import csv
 import time
 import os
-from url_sniffer import get_browser_url  # 🚀 Assumes your sniffer script is in the same folder
+from url_sniffer import get_browser_url
 
 APP_NAME = "Startup Notifier"
-# Stores logs in C:\ProgramData\Startup Notifier
 BASE_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), APP_NAME)
 
 
@@ -19,13 +18,29 @@ def get_daily_log_file():
     return os.path.join(BASE_DIR, filename)
 
 
+def format_duration(seconds):
+    """Formats raw seconds into 'X Minutes Y Seconds' or 'X Seconds'."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds} Seconds"
+
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+
+    if remaining_seconds == 0:
+        return f"{minutes} Minutes"
+    else:
+        return f"{minutes} Minutes {remaining_seconds} Seconds"
+
+
 def ensure_log_file(file_path):
     """Creates the directory and file with headers if they don't exist."""
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     if not os.path.exists(file_path):
         with open(file_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["Timestamp", "Application", "PID", "Window Title", "URL"])
+            # 🚀 Column updated to reflect human-readable duration
+            writer.writerow(["Timestamp", "Application", "PID", "Window Title", "URL", "Duration"])
 
 
 def get_active_window_info():
@@ -40,7 +55,6 @@ def get_active_window_info():
         process = psutil.Process(pid)
         app_name = process.name()
 
-        # Sniff URL if a common browser is detected
         url = "N/A"
         if any(b in app_name.lower() for b in ["chrome", "msedge", "brave"]):
             url = get_browser_url()
@@ -51,22 +65,47 @@ def get_active_window_info():
 
 
 def start_logging():
-    """Main loop: Detects changes and writes to the daily CSV."""
-    last_entry = None
+    """Main loop: Detects changes and logs formatted duration."""
+    last_info = None
+    start_time = time.time()
+
     while True:
         try:
             current_log_file = get_daily_log_file()
             ensure_log_file(current_log_file)
 
             info = get_active_window_info()
+
             if info:
-                current_entry = (info["app_name"], info["pid"], info["title"], info["url"])
-                if current_entry != last_entry:
+                if last_info is None:
+                    last_info = info
+                    start_time = time.time()
+
+                elif (info["app_name"] != last_info["app_name"] or
+                      info["pid"] != last_info["pid"] or
+                      info["title"] != last_info["title"] or
+                      info["url"] != last_info["url"]):
+
+                    # 🚀 Calculate and format duration
+                    raw_seconds = time.time() - start_time
+                    readable_duration = format_duration(raw_seconds)
+
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                     with open(current_log_file, "a", newline="", encoding="utf-8") as f:
                         writer = csv.writer(f)
-                        writer.writerow([timestamp, info["app_name"], info["pid"], info["title"], info["url"]])
-                    last_entry = current_entry
-            time.sleep(1)  # Frequency of checks
+                        writer.writerow([
+                            timestamp,
+                            last_info["app_name"],
+                            last_info["pid"],
+                            last_info["title"],
+                            last_info["url"],
+                            readable_duration
+                        ])
+
+                    last_info = info
+                    start_time = time.time()
+
+            time.sleep(1)
         except Exception:
             time.sleep(1)
