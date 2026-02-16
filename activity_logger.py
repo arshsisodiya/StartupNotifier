@@ -6,11 +6,13 @@ import csv
 import time
 import os
 from url_sniffer import get_browser_url
-# 🚀 New import for input tracking
 from pynput import mouse, keyboard
 
 APP_NAME = "Startup Notifier"
 BASE_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), APP_NAME)
+
+# 🚀 Configuration for Idle Detection
+IDLE_THRESHOLD = 120  # 2 minutes in seconds
 
 
 # --- Input Tracking Logic ---
@@ -18,6 +20,7 @@ class InputCounter:
     def __init__(self):
         self.kb_count = 0
         self.mouse_count = 0
+        self.last_input_time = time.time()  # 🚀 Track last physical activity
 
         # Start listeners in background threads
         self.kb_listener = keyboard.Listener(on_press=self._on_key_press)
@@ -28,10 +31,16 @@ class InputCounter:
 
     def _on_key_press(self, key):
         self.kb_count += 1
+        self.last_input_time = time.time()  # 🚀 Reset idle clock on key press
 
     def _on_mouse_click(self, x, y, button, pressed):
         if pressed:
             self.mouse_count += 1
+            self.last_input_time = time.time()  # 🚀 Reset idle clock on mouse click
+
+    def get_idle_time(self):
+        """Returns how many seconds since the last input."""
+        return time.time() - self.last_input_time
 
     def get_and_reset(self):
         """Returns current counts and resets them for the next window session."""
@@ -43,6 +52,25 @@ class InputCounter:
 
 # Initialize the global counter
 input_tracker = InputCounter()
+
+
+def is_media_active(info):
+    """🚀 Checks if the current window is a media player or video site."""
+    if not info: return False
+
+    app = info["app_name"].lower()
+    title = info["title"].lower()
+
+    # Dedicated media apps
+    media_apps = ["vlc.exe", "mpc-hc.exe", "spotify.exe", "netflix.exe"]
+    # Browser keywords for video sites
+    web_media = ["youtube", "netflix", "prime video", "hotstar", "twitch", "vimeo"]
+
+    if any(m in app for m in media_apps):
+        return True
+    if any(w in title for w in web_media):
+        return True
+    return False
 
 
 def get_daily_log_file():
@@ -73,7 +101,6 @@ def ensure_log_file(file_path):
     if not os.path.exists(file_path):
         with open(file_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            # 🚀 Added Keystrokes and Clicks columns
             writer.writerow(
                 ["Timestamp", "Application", "PID", "Window Title", "URL", "Duration", "Keystrokes", "Clicks"])
 
@@ -100,9 +127,10 @@ def get_active_window_info():
 
 
 def start_logging():
-    """Main loop: Detects changes and logs formatted duration with input counts."""
+    """Main loop: Detects changes and logs formatted duration with idle-aware tracking."""
     last_info = None
     start_time = time.time()
+    total_idle_deduction = 0  # 🚀 Accumulates paused time
 
     while True:
         try:
@@ -110,42 +138,48 @@ def start_logging():
             ensure_log_file(current_log_file)
 
             info = get_active_window_info()
+            idle_seconds = input_tracker.get_idle_time()
+
+            # 🚀 Idle if threshold exceeded AND it's not a media app
+            is_idle = idle_seconds > IDLE_THRESHOLD and not is_media_active(info)
 
             if info:
                 if last_info is None:
                     last_info = info
                     start_time = time.time()
-                    # Reset counter when we start the very first session
                     input_tracker.get_and_reset()
+                    total_idle_deduction = 0
 
                 elif (info["app_name"] != last_info["app_name"] or
                       info["pid"] != last_info["pid"] or
                       info["title"] != last_info["title"] or
                       info["url"] != last_info["url"]):
 
-                    raw_seconds = time.time() - start_time
+                    # 🚀 Final duration = Total time - Time spent idling
+                    raw_seconds = (time.time() - start_time) - total_idle_deduction
+                    if raw_seconds < 0: raw_seconds = 0
+
                     readable_duration = format_duration(raw_seconds)
-
-                    # 🚀 Retrieve and reset input counts for the finished session
                     keys, clicks = input_tracker.get_and_reset()
-
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                    with open(current_log_file, "a", newline="", encoding="utf-8") as f:
-                        writer = csv.writer(f)
-                        writer.writerow([
-                            timestamp,
-                            last_info["app_name"],
-                            last_info["pid"],
-                            last_info["title"],
-                            last_info["url"],
-                            readable_duration,
-                            keys,  # 🚀 Logged Keys
-                            clicks  # 🚀 Logged Clicks
-                        ])
+                    # Log only if there was active time
+                    if raw_seconds > 0:
+                        with open(current_log_file, "a", newline="", encoding="utf-8") as f:
+                            writer = csv.writer(f)
+                            writer.writerow([
+                                timestamp, last_info["app_name"], last_info["pid"],
+                                last_info["title"], last_info["url"], readable_duration,
+                                keys, clicks
+                            ])
 
                     last_info = info
                     start_time = time.time()
+                    total_idle_deduction = 0
+
+                # 🚀 If user is currently idle, subtract this second from active time
+                if is_idle:
+                    total_idle_deduction += 1
 
             time.sleep(1)
         except Exception:
