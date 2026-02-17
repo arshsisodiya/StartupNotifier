@@ -7,10 +7,8 @@ import time
 import os
 from url_sniffer import get_browser_url
 from pynput import mouse, keyboard
-
+from storage import get_data_dir
 APP_NAME = "Startup Notifier"
-BASE_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), APP_NAME)
-
 # 🚀 Configuration for Idle Detection
 IDLE_THRESHOLD = 120  # 2 minutes in seconds
 
@@ -77,7 +75,7 @@ def get_daily_log_file():
     """Generates a filename based on the current date."""
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
     filename = f"activity_log_{date_str}.csv"
-    return os.path.join(BASE_DIR, filename)
+    return os.path.join(get_data_dir(), filename)
 
 
 def format_duration(seconds):

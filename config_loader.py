@@ -1,35 +1,16 @@
-import json
+# config_loader.py
+
 import os
-import sys
-import shutil
 import requests
 import tkinter as tk
 from tkinter import messagebox
 from secure_config import encrypt_data, decrypt_data
-
-APP_NAME = "Startup Notifier"
-
-
-def get_programdata_config_path():
-    return os.path.join(
-        os.environ.get("PROGRAMDATA", "C:\\ProgramData"),
-        APP_NAME,
-        "config.json"
-    )
+from storage import get_config_path
 
 
-def get_exe_directory_config_path():
-    if getattr(sys, "frozen", False):
-        exe_dir = os.path.dirname(sys.executable)
-    else:
-        exe_dir = os.getcwd()
-
-    return os.path.join(exe_dir, "config.json")
-
-
-def ensure_directory(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-
+# ===============================
+# TELEGRAM VALIDATION
+# ===============================
 
 def validate_telegram(bot_token, chat_id):
     try:
@@ -49,6 +30,7 @@ def validate_telegram(bot_token, chat_id):
             return False, "Invalid Chat ID"
 
         return True, "OK"
+
     except Exception as e:
         return False, str(e)
 
@@ -63,12 +45,63 @@ def is_valid_config(config):
         return False
 
 
-def copy_config_to_programdata(source_path):
-    dest_path = get_programdata_config_path()
-    ensure_directory(dest_path)
-    shutil.copy2(source_path, dest_path)
-    return dest_path
+# ===============================
+# CONFIG CREATION
+# ===============================
 
+def create_config(bot_token, chat_id):
+    config_path = get_config_path()
+
+    config_data = {
+        "ui_mode": "normal",
+        "startup_delay": 15,
+        "logging": {"level": "info"},
+        "telegram": {
+            "bot_token": bot_token,
+            "chat_id": chat_id
+        }
+    }
+
+    encrypted_blob = encrypt_data(config_data)
+
+    with open(config_path, "wb") as f:
+        f.write(encrypted_blob)
+
+    return config_data
+
+
+# ===============================
+# LOAD CONFIG
+# ===============================
+
+def load_config():
+    config_path = get_config_path()
+
+    # 1️⃣ If encrypted config exists → decrypt
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "rb") as f:
+                encrypted_blob = f.read()
+
+            config = decrypt_data(encrypted_blob)
+
+            if is_valid_config(config):
+                return config
+            else:
+                os.remove(config_path)
+
+        except Exception:
+            # corrupted config
+            os.remove(config_path)
+
+    # 2️⃣ Prompt user for setup
+    bot_token, chat_id = prompt_for_config()
+    return create_config(bot_token, chat_id)
+
+
+# ===============================
+# UI SETUP PROMPT
+# ===============================
 
 def prompt_for_config():
     result = {}
@@ -189,62 +222,3 @@ def prompt_for_config():
         raise RuntimeError("Telegram configuration is required.")
 
     return result["bot"], result["chat"]
-
-
-
-def create_config(bot_token, chat_id):
-    config_path = get_programdata_config_path()
-    ensure_directory(config_path)
-
-    config_data = {
-        "ui_mode": "normal",
-        "startup_delay": 15,
-        "logging": {"level": "info"},
-        "telegram": {
-            "bot_token": bot_token,
-            "chat_id": chat_id
-        }
-    }
-
-    encrypted_blob = encrypt_data(config_data)
-
-    with open(config_path, "wb") as f:
-        f.write(encrypted_blob)
-
-    return config_data
-
-def load_config():
-    programdata_path = get_programdata_config_path()
-
-    # 1️⃣ If encrypted config exists in ProgramData → decrypt
-    if os.path.exists(programdata_path):
-        try:
-            with open(programdata_path, "rb") as f:
-                encrypted_blob = f.read()
-            return decrypt_data(encrypted_blob)
-
-        except Exception:
-            # Corrupted or incompatible config
-            os.remove(programdata_path)
-
-    # 2️⃣ If plain config exists beside EXE → validate, encrypt, migrate
-    exe_config_path = get_exe_directory_config_path()
-
-    if os.path.exists(exe_config_path):
-        try:
-            with open(exe_config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-            if is_valid_config(config):
-                # Encrypt and store properly
-                return create_config(
-                    config["telegram"]["bot_token"],
-                    config["telegram"]["chat_id"]
-                )
-
-        except Exception:
-            pass
-
-    # 3️⃣ Otherwise prompt user
-    bot_token, chat_id = prompt_for_config()
-    return create_config(bot_token, chat_id)

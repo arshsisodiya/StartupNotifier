@@ -3,8 +3,7 @@ import cv2
 import os
 import time
 from logger import setup_logger
-from logger import get_app_data_dir
-
+from storage import  get_data_dir
 logger = setup_logger()
 
 
@@ -19,7 +18,7 @@ def capture_webcam():
         return None
 
     try:
-        app_dir = get_app_data_dir()
+        app_dir = get_data_dir()
         os.makedirs(app_dir, exist_ok=True)
         filename = f"webcam_{int(time.time())}.jpg"
         filepath = os.path.join(app_dir, filename)
@@ -59,7 +58,7 @@ def record_video(duration=10):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-        app_dir = get_app_data_dir()
+        app_dir = get_data_dir()
         filename = f"video_{int(time.time())}.mp4"
         filepath = os.path.join(app_dir, filename)
 

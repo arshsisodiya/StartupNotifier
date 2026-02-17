@@ -5,9 +5,9 @@ import datetime
 import psutil
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
+from storage import get_data_dir
 APP_NAME = "Startup Notifier"
-BASE_DIR = os.path.join(os.environ.get("PROGRAMDATA", "C:\\ProgramData"), APP_NAME)
+BASE_DIR = get_data_dir()
 
 def get_daily_log_file():
     """Generates filename: system_file_activity_YYYY-MM-DD.csv"""

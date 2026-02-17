@@ -3,10 +3,9 @@
 import os
 import time
 from PIL import ImageGrab
-from logger import setup_logger
-from logger import get_app_data_dir
-
-logger = setup_logger()
+from storage import  get_data_dir
+import logging
+logger = logging.getLogger("StartupNotifier")
 
 
 def capture_screenshot():
@@ -14,7 +13,7 @@ def capture_screenshot():
     Captures screenshot and returns file path
     """
     try:
-        app_dir = get_app_data_dir()
+        app_dir = get_data_dir()
         os.makedirs(app_dir, exist_ok=True)
 
         filename = f"screenshot_{int(time.time())}.png"
