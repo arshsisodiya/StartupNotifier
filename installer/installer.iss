@@ -1,5 +1,5 @@
 #define AppName "Startup Notifier"
-#define AppVersion GetEnv('APP_VERSION')
+#define AppVersion "2.1.10"
 #define AppPublisher "Arsh Sisodiya"
 #define AppExeName "StartupNotifier.exe"
 #define AppDirName "Startup Notifier"
@@ -26,29 +26,53 @@ WizardStyle=modern
 SetupLogging=yes
 LicenseFile=license.txt
 
+; ⭐ IMPORTANT FOR UPDATE STABILITY
+CloseApplications=yes
+RestartApplications=no
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+; =============================
+; FILES (FOR PYINSTALLER --ONEDIR)
+; =============================
+
 [Files]
-Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Copy entire onedir folder
+Source: "..\dist\StartupNotifier\*"; \
+    DestDir: "{app}"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs
+
+; =============================
+; REGISTRY CLEANUP
+; =============================
 
 [Registry]
-; Remove Windows Run key entry on uninstall
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
     ValueName: "StartupNotifier"; \
     Flags: deletevalue uninsdeletevalue
 
+; =============================
+; ICONS
+; =============================
+
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 
+; =============================
+; RUN AFTER INSTALL
+; =============================
+
 [Run]
 
+; Create scheduled task
 Filename: "schtasks.exe"; \
 Parameters: "/create /f /sc onlogon /tn ""{#TaskName}"" /tr """"{app}\{#AppExeName}"""""; \
 Flags: runhidden
 
+; Launch app
 Filename: "{app}\{#AppExeName}"; \
-Flags: nowait
+Flags: nowait postinstall skipifsilent
 
 ; =============================
 ; UNINSTALL SECTION
@@ -56,13 +80,13 @@ Flags: nowait
 
 [UninstallRun]
 
-; Kill running process safely
+; Kill running process
 Filename: "taskkill.exe"; \
 Parameters: "/f /im {#AppExeName}"; \
 Flags: runhidden; \
 RunOnceId: "KillStartupNotifier"
 
-; Delete scheduled task safely
+; Delete scheduled task
 Filename: "schtasks.exe"; \
 Parameters: "/delete /f /tn ""{#TaskName}"""; \
 Flags: runhidden; \
