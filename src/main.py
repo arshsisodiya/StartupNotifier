@@ -8,14 +8,14 @@ import platform
 import threading
 from datetime import datetime
 
-from single_instance import ensure_single_instance
-from file_monitor import start_file_watchdog
-from telegram_client import TelegramClient
-from logger import setup_logger
-from startup import add_to_startup
-from network import wait_for_internet
-from activity_logger import start_logging
-from update_manager import UpdateManager
+from src.core.single_instance import ensure_single_instance
+from src.core.file_monitor import start_file_watchdog
+from src.services.telegram_client import TelegramClient
+from src.utils.logger import setup_logger
+from src.core.startup import add_to_startup
+from src.core.network import wait_for_internet
+from src.core.activity_logger import start_logging
+from src.services.update_manager import UpdateManager
 
 logger = setup_logger()
 ENABLE_UPDATER = True

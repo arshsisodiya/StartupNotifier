@@ -5,9 +5,9 @@ import datetime
 import csv
 import time
 import os
-from url_sniffer import get_browser_url
+from src.core.url_sniffer import get_browser_url
 from pynput import mouse, keyboard
-from storage import get_data_dir
+from src.config.storage import get_data_dir
 APP_NAME = "Startup Notifier"
 # 🚀 Configuration for Idle Detection
 IDLE_THRESHOLD = 120  # 2 minutes in seconds

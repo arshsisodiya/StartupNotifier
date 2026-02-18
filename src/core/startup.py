@@ -1,8 +1,7 @@
 # startup.py
 
 import winreg
-import os
-from logger import setup_logger
+from src.utils.logger import setup_logger
 
 logger = setup_logger()
 

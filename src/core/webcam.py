@@ -2,8 +2,8 @@
 import cv2
 import os
 import time
-from logger import setup_logger
-from storage import  get_data_dir
+from src.utils.logger import setup_logger
+from src.config.storage import  get_data_dir
 logger = setup_logger()
 
 

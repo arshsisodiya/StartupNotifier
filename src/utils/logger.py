@@ -3,7 +3,7 @@
 import logging
 import os
 from datetime import datetime, timedelta
-from storage import get_logs_dir
+from src.config.storage import get_logs_dir
 
 LOG_RETENTION_DAYS = 7
 

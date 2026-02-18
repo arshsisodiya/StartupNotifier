@@ -3,7 +3,7 @@
 import os
 import time
 from PIL import ImageGrab
-from storage import  get_data_dir
+from src.config.storage import  get_data_dir
 import logging
 logger = logging.getLogger("StartupNotifier")
 

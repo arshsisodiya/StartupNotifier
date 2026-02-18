@@ -5,7 +5,7 @@ import datetime
 import psutil
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from storage import get_data_dir
+from src.config.storage import get_data_dir
 APP_NAME = "Startup Notifier"
 BASE_DIR = get_data_dir()
 

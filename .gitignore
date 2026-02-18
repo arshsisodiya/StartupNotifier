@@ -1,4 +1,3 @@
-
 __pycache__/
 *.py[cod]
 *.pyo
@@ -20,7 +19,6 @@ ENV/
 # =========================
 # PyInstaller / Executables
 # =========================
-*.spec
 *.exe
 *.dll
 *.log
@@ -40,7 +38,7 @@ secrets.json
 logs/
 *.log
 *.pid
-
+version.txt
 # =========================
 # IDE / Editor
 # =========================

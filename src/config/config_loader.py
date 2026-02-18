@@ -4,8 +4,8 @@ import os
 import json
 import tkinter as tk
 from tkinter import messagebox
-from secure_config import encrypt_data, decrypt_data
-from storage import get_config_path
+from src.config.secure_config import encrypt_data, decrypt_data
+from src.config.storage import get_config_path
 
 
 # ===============================

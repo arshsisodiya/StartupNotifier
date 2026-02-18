@@ -1,14 +1,13 @@
 # telegram_client.py
-
+import os
 import requests
 import time
-from logger import setup_logger
-from system_status import get_status_text
-from screenshot import capture_screenshot
-from system_actions import shutdown_system, restart_system, lock_system
-import os
-from config_loader import load_config
-from webcam import capture_webcam, record_video
+from src.utils.logger import setup_logger
+from src.core.system_status import get_status_text
+from src.core.screenshot import capture_screenshot
+from src.core.system_actions import shutdown_system, restart_system, lock_system
+from src.config.config_loader import load_config
+from src.core.webcam import capture_webcam, record_video
 CONFIG = load_config()
 
 TELEGRAM_BOT_TOKEN = CONFIG["telegram"]["bot_token"]

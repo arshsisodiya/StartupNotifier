@@ -1,12 +1,12 @@
 #define AppName "Startup Notifier"
-#define AppVersion GetEnv('APP_VERSION')
+#define AppVersion "2.1.14"
 #define AppPublisher "Arsh Sisodiya"
 #define AppExeName "StartupNotifier.exe"
 #define AppDirName "Startup Notifier"
 #define TaskName "StartupNotifierTask"
 
 [Setup]
-AppId={{9A5E9D2F-8C24-4F92-B2A9-STARTUPNOTIFIERBYARSH}}
+AppId={{3c6f81ac-25dd-43a5-84b6-8b77764c9434}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
