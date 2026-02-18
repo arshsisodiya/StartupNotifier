@@ -71,9 +71,10 @@ def safe_file_watchdog():
 def main():
     logger.info("Application started")
 
-    # Register startup
+    # Register startup only when running as packaged EXE
     exe_path = get_executable_path()
-    add_to_startup(exe_path)
+    if getattr(sys, "frozen", False):
+        add_to_startup(exe_path)
 
     # Give system some breathing room
     time.sleep(10)

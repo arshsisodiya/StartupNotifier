@@ -16,11 +16,26 @@ def add_to_startup(exe_path: str):
             winreg.HKEY_CURRENT_USER,
             RUN_KEY_PATH,
             0,
-            winreg.KEY_SET_VALUE
+            winreg.KEY_READ | winreg.KEY_SET_VALUE
         ) as key:
-            winreg.SetValueEx(key, APP_REG_NAME, 0, winreg.REG_SZ, exe_path)
 
-        logger.info("Application added to Windows startup")
+            try:
+                existing_value, _ = winreg.QueryValueEx(key, APP_REG_NAME)
+
+                # If already correct, do nothing
+                if existing_value == exe_path:
+                    logger.info("Startup entry already exists and is correct")
+                    return
+
+                # If path changed, update it
+                winreg.SetValueEx(key, APP_REG_NAME, 0, winreg.REG_SZ, exe_path)
+                logger.info("Startup entry updated")
+
+            except FileNotFoundError:
+                # Entry does not exist → create it
+                winreg.SetValueEx(key, APP_REG_NAME, 0, winreg.REG_SZ, exe_path)
+                logger.info("Startup entry created")
+
     except Exception as e:
         logger.error(f"Failed to add to startup: {e}")
 
