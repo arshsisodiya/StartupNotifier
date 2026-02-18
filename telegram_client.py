@@ -139,31 +139,41 @@ class TelegramClient:
             return False
 
     def listen_forever(self):
-        """
-        Persistent Telegram command listener.
-        """
         logger.info("Entering persistent Telegram listener")
+
+        backoff = 2
+        max_backoff = 60
 
         while True:
             try:
                 response = requests.get(
                     f"{self.base_url}/getUpdates",
                     params={"timeout": 30, "offset": self.offset},
-                    timeout=REQUEST_TIMEOUT + 20
+                    timeout=40
                 )
+
+                # Handle Telegram rate limiting
+                if response.status_code == 429:
+                    retry_after = response.json().get("parameters", {}).get("retry_after", 10)
+                    logger.warning(f"Rate limited. Sleeping {retry_after}s")
+                    time.sleep(retry_after)
+                    continue
+
                 response.raise_for_status()
                 updates = response.json().get("result", [])
+
+                # Reset backoff on success
+                backoff = 2
 
                 for update in updates:
                     self.offset = update["update_id"] + 1
                     message = update.get("message", {})
 
                     text = message.get("text", "").strip()
-                    chat_id = str(message.get("chat", {}).get("id", ""))
+                    chat_id = str(message.get("chat", {}).get("id", "")).strip()
 
-                    # 🔒 Security: Ignore messages from unknown chats
                     if chat_id != TELEGRAM_CHAT_ID:
-                        logger.warning("Unauthorized chat attempted command")
+                        logger.warning(f"Unauthorized chat ID: {chat_id}")
                         continue
 
                     command = text.lower()
@@ -172,31 +182,27 @@ class TelegramClient:
                     # STATUS
                     # -------------------
                     if command == "/ping":
-                        logger.info("/ping command received")
                         self.send_message(get_status_text())
 
                     # -------------------
                     # SCREENSHOT
                     # -------------------
                     elif command == "/screenshot":
-                        logger.info("/screenshot command received")
                         path = capture_screenshot()
-
                         if path:
-                            self.send_photo(path, caption="🖥 Current Screen")
+                            self.send_photo(path, caption="Current Screen")
                             try:
                                 os.remove(path)
                             except Exception:
                                 pass
                         else:
-                            self.send_message("❌ Screenshot failed")
+                            self.send_message("Screenshot failed")
 
                     # -------------------
                     # LOCK
                     # -------------------
                     elif command == "/lock":
-                        logger.info("/lock command received")
-                        self.send_message("🔒 Locking system...")
+                        self.send_message("Locking system...")
                         lock_system()
 
                     # -------------------
@@ -204,13 +210,11 @@ class TelegramClient:
                     # -------------------
                     elif command == "/shutdown":
                         self.send_message(
-                            "⚠️ Shutdown requested.\n"
-                            "Send `/shutdown confirm` to proceed."
+                            "Shutdown requested.\nSend `/shutdown confirm` to proceed."
                         )
 
                     elif command == "/shutdown confirm":
-                        logger.info("/shutdown confirmed")
-                        self.send_message("⏻ Shutting down now...")
+                        self.send_message("Shutting down now...")
                         shutdown_system()
 
                     # -------------------
@@ -218,37 +222,31 @@ class TelegramClient:
                     # -------------------
                     elif command == "/restart":
                         self.send_message(
-                            "⚠️ Restart requested.\n"
-                            "Send `/restart confirm` to proceed."
+                            "Restart requested.\nSend `/restart confirm` to proceed."
                         )
 
                     elif command == "/restart confirm":
-                        logger.info("/restart confirmed")
-                        self.send_message("🔄 Restarting now...")
+                        self.send_message("Restarting now...")
                         restart_system()
-                        # -------------------
-                        # WEBCAM
-                        # -------------------
-                    elif command == "/camera":
-                        logger.info("/camera command received")
-                        self.send_message("📸 Capturing webcam image...")
-                        path = capture_webcam()
 
+                    # -------------------
+                    # WEBCAM SNAPSHOT
+                    # -------------------
+                    elif command == "/camera":
+                        path = capture_webcam()
                         if path:
-                            # Using your existing send_photo method
-                            self.send_photo(path, caption="📸 Webcam Snapshot")
+                            self.send_photo(path, caption="Webcam Snapshot")
                             try:
                                 os.remove(path)
                             except Exception:
                                 pass
                         else:
-                            self.send_message("❌ Failed to access webcam.")
-                        # -------------------
-                        # ACTIVITY LOG
-                        # -------------------
-                    elif command == "/getlog":
-                        logger.info("/getlog command received")
+                            self.send_message("Failed to access webcam.")
 
+                    # -------------------
+                    # GET LOGS
+                    # -------------------
+                    elif command == "/getlog":
                         import glob
 
                         app_name = "Startup Notifier"
@@ -265,17 +263,12 @@ class TelegramClient:
                         found_any = False
 
                         for pattern in patterns:
-                            matched_files = glob.glob(pattern)
-
-                            for log_path in matched_files:
-                                try:
-                                    self.send_document(
+                            for log_path in glob.glob(pattern):
+                                if self.send_document(
                                         log_path,
                                         caption=f"Activity Log: {os.path.basename(log_path)}"
-                                    )
+                                ):
                                     found_any = True
-                                except Exception as e:
-                                    logger.error(f"Failed to send log {log_path}: {e}")
 
                         if not found_any:
                             self.send_message("No log files found yet.")
@@ -283,54 +276,35 @@ class TelegramClient:
                     # -------------------
                     # VIDEO RECORDING
                     # -------------------
+                    elif command.startswith("/video"):
+                        parts = command.split()
+                        duration = 10
 
-                    for update in updates:
-                        self.offset = update["update_id"] + 1
-                        message = update.get("message", {})
-                        text = message.get("text", "").strip()
+                        if len(parts) > 1 and parts[1].isdigit():
+                            duration = int(parts[1])
 
-                        # Ensure chat_id is compared as a string and stripped of whitespace
-                        incoming_chat_id = str(message.get("chat", {}).get("id", "")).strip()
-
-                        # 🔒 Security: Strict comparison
-                        if incoming_chat_id != TELEGRAM_CHAT_ID:
-                            logger.warning(f"Unauthorized chat ID: {incoming_chat_id}")
-                            continue
-
-                        # Convert to lowercase for easier matching
-                        full_command = text.lower()
-
-                        # -------------------
-                        # VIDEO RECORDING
-                        # -------------------
-                        if full_command.startswith("/video"):
-                            logger.info(f"Video command received: {full_command}")
-
-                            parts = full_command.split()
-                            duration = 10  # Default
-
-                            if len(parts) > 1 and parts[1].isdigit():
-                                duration = int(parts[1])
-
-                            self.send_message(f"🎥 Recording {duration}s video...")
-                            path = record_video(duration)
-                            # ... rest of your video sending code ...
+                        self.send_message(f"Recording {duration}s video...")
+                        path = record_video(duration)
 
                         if path:
-                            self.send_video(path, caption=f"📹 Webcam Clip ({duration}s)")
+                            self.send_video(path, caption=f"Webcam Clip ({duration}s)")
                             try:
                                 os.remove(path)
                             except Exception:
                                 pass
                         else:
-                            self.send_message("❌ Failed to record video.")
-
-
+                            self.send_message("Video recording failed")
 
             except requests.exceptions.ReadTimeout:
-                logger.warning("Telegram long-poll timeout (expected)")
+                # Expected during long polling
+                continue
+
+            except requests.exceptions.ConnectionError:
+                logger.warning(f"Network lost. Retrying in {backoff}s")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
             except Exception as e:
                 logger.error(f"Listener error: {e}")
-
-            time.sleep(2)
+                time.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
