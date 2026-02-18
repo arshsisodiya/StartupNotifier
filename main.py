@@ -17,9 +17,8 @@ from network import wait_for_internet
 from activity_logger import start_logging
 from update_manager import UpdateManager
 
-
 logger = setup_logger()
-
+ENABLE_UPDATER = True
 
 # 🔒 Ensure only one instance runs
 mutex = ensure_single_instance()
@@ -85,7 +84,7 @@ def main():
         return
 
     # Run updater only when packaged EXE
-    if getattr(sys, 'frozen', False):
+    if ENABLE_UPDATER and getattr(sys, 'frozen', False):
         logger.info("Checking for updates in background...")
         updater = UpdateManager(silent=True, logger=logger)
         updater.start()
