@@ -13,7 +13,6 @@ AppPublisher={#AppPublisher}
 DefaultDirName={pf}\{#AppDirName}
 DisableDirPage=yes
 DefaultGroupName={#AppName}
-DisableProgramGroupPage=no
 OutputDir=output
 OutputBaseFilename=StartupNotifierSetup-{#AppVersion}
 Compression=lzma
@@ -25,136 +24,81 @@ UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 WizardStyle=modern
 SetupLogging=yes
+LicenseFile=license.txt
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Components]
-Name: "main"; Description: "Application Files"; Flags: fixed
-
-[Tasks]
-Name: "normalmode"; Description: "Normal Mode (visible, configurable)"; Flags: exclusive
-Name: "hiddenmode"; Description: "Background Mode (runs silently at startup)"; Flags: exclusive unchecked
-Name: "desktopicon"; Description: "Create Desktop Shortcut"; Flags: unchecked
-
 [Files]
 Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: ".\config.template.json"; DestDir: "{commonappdata}\{#AppDirName}"; DestName: "config.json"; Flags: onlyifdoesntexist
 
-[Dirs]
-Name: "{commonappdata}\{#AppDirName}"; Permissions: admins-full system-full
+[Registry]
+; Remove Windows Run key entry on uninstall
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
+    ValueName: "StartupNotifier"; \
+    Flags: deletevalue uninsdeletevalue
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: normalmode
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 
 [Run]
+
 Filename: "schtasks.exe"; \
-Parameters: "/create /f /sc onstart /ru SYSTEM /rl HIGHEST /tn {#TaskName} /tr """"{app}\{#AppExeName}"""""; \
+Parameters: "/create /f /sc onlogon /tn ""{#TaskName}"" /tr """"{app}\{#AppExeName}"""""; \
 Flags: runhidden
 
 Filename: "{app}\{#AppExeName}"; \
-Flags: nowait; Tasks: normalmode
+Flags: nowait
 
-Filename: "{app}\{#AppExeName}"; \
-Flags: nowait runhidden; Tasks: hiddenmode
-
+; =============================
+; UNINSTALL SECTION
+; =============================
 
 [UninstallRun]
+
+; Kill running process safely
 Filename: "taskkill.exe"; \
 Parameters: "/f /im {#AppExeName}"; \
-Flags: runhidden
+Flags: runhidden; \
+RunOnceId: "KillStartupNotifier"
 
-Filename: "taskkill.exe"; \
-Parameters: "/f /fi ""IMAGENAME eq {#AppExeName}"""; \
-Flags: runhidden
-
+; Delete scheduled task safely
 Filename: "schtasks.exe"; \
-Parameters: "/delete /f /tn {#TaskName}"; \
-Flags: runhidden
-
-Filename: "cmd.exe"; \
-Parameters: "/c timeout /t 2 >nul"; \
-Flags: runhidden
-
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{commonappdata}\{#AppDirName}"
+Parameters: "/delete /f /tn ""{#TaskName}"""; \
+Flags: runhidden; \
+RunOnceId: "DeleteStartupNotifierTask"
 
 ; =============================
-; CODE MUST BE LAST
+; OPTIONAL DATA DELETE PROMPT
 ; =============================
+
 [Code]
 
 var
-  TelegramPage: TInputQueryWizardPage;
+  DeleteData: Boolean;
 
-procedure InitializeWizard;
+procedure InitializeUninstallProgressForm;
+var
+  Response: Integer;
 begin
-  TelegramPage :=
-    CreateInputQueryPage(
-      wpSelectTasks,
-      'Telegram Configuration',
-      'Telegram Bot Setup',
-      'Enter your Telegram bot details. These are stored locally and can be changed later.'
+  Response :=
+    MsgBox(
+      'Do you want to delete all application data (logs, config, activity data)?',
+      mbConfirmation,
+      MB_YESNO or MB_DEFBUTTON2
     );
 
-  TelegramPage.Add('Bot Token:', False);
-  TelegramPage.Add('Chat ID:', False);
+  DeleteData := (Response = idYes);
 end;
 
-procedure WriteConfig(Mode: String);
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
-  ConfigPath: String;
-  ConfigJson: String;
-  BotToken: String;
-  ChatId: String;
+  DataPath: String;
 begin
-  ConfigPath :=
-    ExpandConstant('{commonappdata}\Startup Notifier\config.json');
-
-  BotToken := TelegramPage.Values[0];
-  ChatId := TelegramPage.Values[1];
-
-  ConfigJson :=
-    '{' + #13#10 +
-    '  "ui_mode": "' + Mode + '",' + #13#10 +
-    '  "startup_delay": 15,' + #13#10 +
-    '  "logging": { "level": "info" },' + #13#10 +
-    '  "telegram": {' + #13#10 +
-    '    "bot_token": "' + BotToken + '",' + #13#10 +
-    '    "chat_id": "' + ChatId + '"' + #13#10 +
-    '  }' + #13#10 +
-    '}';
-
-  SaveStringToFile(ConfigPath, ConfigJson, False);
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssPostInstall then
+  if (CurUninstallStep = usPostUninstall) and DeleteData then
   begin
-    if IsTaskSelected('hiddenmode') then
-      WriteConfig('hidden')
-    else
-      WriteConfig('normal');
-  end;
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-begin
-  Result := True;
-
-  if CurPageID = TelegramPage.ID then
-  begin
-    if (TelegramPage.Values[0] = '') or (TelegramPage.Values[1] = '') then
-    begin
-      MsgBox(
-        'Telegram Bot Token and Chat ID are required.',
-        mbError,
-        MB_OK
-      );
-      Result := False;
-    end;
+    DataPath := ExpandConstant('{localappdata}\{#AppDirName}');
+    if DirExists(DataPath) then
+      DelTree(DataPath, True, True, True);
   end;
 end;
