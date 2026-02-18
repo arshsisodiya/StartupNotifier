@@ -5,4 +5,4 @@ pywin32
 opencv-python
 watchdog
 pywinauto
-pyinput
+pynput
